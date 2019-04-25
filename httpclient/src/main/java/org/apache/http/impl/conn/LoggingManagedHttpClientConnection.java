@@ -31,15 +31,20 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CharsetEncoder;
 
 import org.apache.commons.logging.Log;
 import org.apache.http.Header;
+import org.apache.http.HeaderElement;
+import org.apache.http.HttpEntityEnclosingRequest;
+import org.apache.http.HttpException;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
 import org.apache.http.config.MessageConstraints;
 import org.apache.http.entity.ContentLengthStrategy;
+import org.apache.http.entity.ContentType;
 import org.apache.http.io.HttpMessageParserFactory;
 import org.apache.http.io.HttpMessageWriterFactory;
 
@@ -48,6 +53,7 @@ class LoggingManagedHttpClientConnection extends DefaultManagedHttpClientConnect
     private final Log log;
     private final Log headerLog;
     private final Wire wire;
+    private final CharsetStreamSupport charsetStreamSupport;
 
     public LoggingManagedHttpClientConnection(
             final String id,
@@ -62,13 +68,15 @@ class LoggingManagedHttpClientConnection extends DefaultManagedHttpClientConnect
             final ContentLengthStrategy incomingContentStrategy,
             final ContentLengthStrategy outgoingContentStrategy,
             final HttpMessageWriterFactory<HttpRequest> requestWriterFactory,
-            final HttpMessageParserFactory<HttpResponse> responseParserFactory) {
+            final HttpMessageParserFactory<HttpResponse> responseParserFactory,
+            final CharsetStreamSupport aCharsetStreamSupport) {
         super(id, bufferSize, fragmentSizeHint, charDecoder, charEncoder,
                 constraints, incomingContentStrategy, outgoingContentStrategy,
                 requestWriterFactory, responseParserFactory);
         this.log = log;
         this.headerLog = headerLog;
-        this.wire = new Wire(wireLog, id);
+        this.charsetStreamSupport = aCharsetStreamSupport;
+        this.wire = new Wire(wireLog, id, aCharsetStreamSupport);
     }
 
     @Override
@@ -137,5 +145,38 @@ class LoggingManagedHttpClientConnection extends DefaultManagedHttpClientConnect
             }
         }
     }
+
+//	@Override
+//	public void sendRequestHeader(HttpRequest request) throws HttpException, IOException {
+//		super.sendRequestHeader(request);
+//	}
+
+	@Override
+	public void sendRequestEntity(HttpEntityEnclosingRequest request) throws HttpException, IOException {
+		ContentType contentType = ContentType.get(request.getEntity());
+		if (contentType!=null) {
+			Charset charset = contentType.getCharset();
+			if (charset!=null) charsetStreamSupport.initialize(charset, 128);
+			else charsetStreamSupport.initialize("ISO-8859-1", 128);
+		}
+		super.sendRequestEntity(request);
+	}
+
+//	@Override
+//	public HttpResponse receiveResponseHeader() throws HttpException, IOException {
+//		HttpResponse response = super.receiveResponseHeader();
+//		return response;
+//	}
+
+	@Override
+	public void receiveResponseEntity(HttpResponse response) throws HttpException, IOException {
+		super.receiveResponseEntity(response);
+		ContentType contentType = ContentType.get(response.getEntity());
+		if (contentType!=null) {
+			Charset charset = contentType.getCharset();
+			if (charset!=null) charsetStreamSupport.initialize(charset, 128);
+			else charsetStreamSupport.initialize("ISO-8859-1", 128);
+		}
+	}
 
 }

@@ -55,14 +55,14 @@ public class Wire {
     /**
      * @since 4.3
      */
-    public Wire(final Log log, final String id) {
+    public Wire(final Log log, final String id, final CharsetStreamSupport aCss) {
         this.log = log;
         this.id = id;
-        this.css = new CharsetStreamSupport("UTF-8", this.log);
+        this.css = aCss;
     }
 
     public Wire(final Log log) {
-        this(log, "");
+        this(log, "", null);
     }
 
 	private void wire(final String header, final InputStream inStream) throws IOException {
@@ -78,11 +78,10 @@ public class Wire {
 
 		while (bytesRead != -1) {
 			if (bytesRead>0) {
-				css.decode(cb, bbuffer, false);
-				cb.flip();
+				bbuffer.flip();
+				cb=css.decode(bbuffer, false);
 				log.debug(id+" "+header+"\""+cb.toString());
-				bbuffer.compact();
-				cb.clear();
+				bbuffer.clear();
 			}
 			bytesRead = bbChannel.read(bbuffer);
 		}

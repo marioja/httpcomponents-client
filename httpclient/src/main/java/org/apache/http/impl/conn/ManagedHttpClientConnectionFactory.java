@@ -70,6 +70,8 @@ public class ManagedHttpClientConnectionFactory
     private final HttpMessageParserFactory<HttpResponse> responseParserFactory;
     private final ContentLengthStrategy incomingContentStrategy;
     private final ContentLengthStrategy outgoingContentStrategy;
+    private final CharsetStreamSupport charsetStreamSupport;
+
 
     /**
      * @since 4.4
@@ -88,6 +90,7 @@ public class ManagedHttpClientConnectionFactory
                 LaxContentLengthStrategy.INSTANCE;
         this.outgoingContentStrategy = outgoingContentStrategy != null ? outgoingContentStrategy :
                 StrictContentLengthStrategy.INSTANCE;
+        this.charsetStreamSupport = new CharsetStreamSupport();
     }
 
     public ManagedHttpClientConnectionFactory(
@@ -123,6 +126,7 @@ public class ManagedHttpClientConnectionFactory
             charEncoder.onMalformedInput(malformedInputAction);
             charEncoder.onUnmappableCharacter(unmappableInputAction);
         }
+        
         final String id = "http-outgoing-" + Long.toString(COUNTER.getAndIncrement());
         return new LoggingManagedHttpClientConnection(
                 id,
@@ -137,7 +141,8 @@ public class ManagedHttpClientConnectionFactory
                 incomingContentStrategy,
                 outgoingContentStrategy,
                 requestWriterFactory,
-                responseParserFactory);
+                responseParserFactory,
+                charsetStreamSupport);
     }
 
 }
