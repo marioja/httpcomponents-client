@@ -29,6 +29,10 @@ package org.apache.http.impl.conn;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
 
 import org.apache.commons.logging.Log;
 import org.apache.http.annotation.Contract;
@@ -46,6 +50,7 @@ public class Wire {
 
     private final Log log;
     private final String id;
+    private final CharsetStreamSupport css;
 
     /**
      * @since 4.3
@@ -53,40 +58,63 @@ public class Wire {
     public Wire(final Log log, final String id) {
         this.log = log;
         this.id = id;
+        this.css = new CharsetStreamSupport("UTF-8", this.log);
     }
 
     public Wire(final Log log) {
         this(log, "");
     }
 
-    private void wire(final String header, final InputStream inStream)
-      throws IOException {
-        final StringBuilder buffer = new StringBuilder();
-        int ch;
-        while ((ch = inStream.read()) != -1) {
-            if (ch == 13) {
-                buffer.append("[\\r]");
-            } else if (ch == 10) {
-                    buffer.append("[\\n]\"");
-                    buffer.insert(0, "\"");
-                    buffer.insert(0, header);
-                    log.debug(id + " " + buffer.toString());
-                    buffer.setLength(0);
-            } else if ((ch < 32) || (ch > 127)) {
-                buffer.append("[0x");
-                buffer.append(Integer.toHexString(ch));
-                buffer.append("]");
-            } else {
-                buffer.append((char) ch);
-            }
-        }
-        if (buffer.length() > 0) {
-            buffer.append('\"');
-            buffer.insert(0, '\"');
-            buffer.insert(0, header);
-            log.debug(id + " " + buffer.toString());
-        }
-    }
+	private void wire(final String header, final InputStream inStream) throws IOException {
+		final StringBuilder buffer = new StringBuilder();
+//        final byte[] bbuffer=new byte[128];
+		final int byteSize=128;
+		final ByteBuffer bbuffer = ByteBuffer.allocate(byteSize);
+		CharBuffer cb=CharBuffer.allocate((int)(((double)byteSize)*css.averageCharsPerByte()));
+
+		ReadableByteChannel bbChannel = Channels.newChannel(inStream);
+//        int bytesRead=inStream.read(bb.array(), bb.position(), bb.limit());
+		int bytesRead = bbChannel.read(bbuffer);
+
+		while (bytesRead != -1) {
+			if (bytesRead>0) {
+				css.decode(cb, bbuffer, false);
+				cb.flip();
+				log.debug(id+" "+header+"\""+cb.toString());
+				bbuffer.compact();
+				cb.clear();
+			}
+			bytesRead = bbChannel.read(bbuffer);
+		}
+		bbChannel.close();
+		return;
+	}
+//        final StringBuilder buffer = new StringBuilder();
+//        int ch;
+//        while ((ch = inStream.read()) != -1) {
+//            if (ch == 13) {
+//                buffer.append("[\\r]");
+//            } else if (ch == 10) {
+//                    buffer.append("[\\n]\"");
+//                    buffer.insert(0, "\"");
+//                    buffer.insert(0, header);
+//                    log.debug(id + " " + buffer.toString());
+//                    buffer.setLength(0);
+//            } else if ((ch < 32) || (ch > 127)) {
+//                buffer.append("[0x");
+//                buffer.append(Integer.toHexString(ch));
+//                buffer.append("]");
+//            } else {
+//                buffer.append((char) ch);
+//            }
+//        }
+//        if (buffer.length() > 0) {
+//            buffer.append('\"');
+//            buffer.insert(0, '\"');
+//            buffer.insert(0, header);
+//            log.debug(id + " " + buffer.toString());
+//        }
+//    }
 
 
     public boolean enabled() {
